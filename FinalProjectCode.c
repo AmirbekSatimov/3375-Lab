@@ -30,6 +30,7 @@ int main() {
 		if (timerDone == 1) {
 			// Calculates averages
 			calcAvgs(adcVals, avgCount, avgs);
+			sendData(avgs, switchesFlipped);
 		}
 	}
 }
@@ -116,7 +117,7 @@ void sendData(int* avgs, int* switchesFlipped) {
 			// this byte is the rest of the number ending with the lsb, 1 extra space 
 			char byte2 = (avgs[i] & 0b1111111) << 1;
 
-			// something like sendData(byte1, byte2);
+			// then call a function like sendOverSerial(byte1, byte2);
 		}
 	}
 }
