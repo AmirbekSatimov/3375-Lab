@@ -1,6 +1,8 @@
 #define ADC_BASE	0xFF204000
 #define SW_BASE     0xFF200040
 #define MPCORE_PRIV_TIMER     0xFFFEC600
+#define JTEG_UART 	0xFF201007
+
 
 const int switchNum = 8;
 
@@ -27,7 +29,7 @@ int main() {
 	volatile a9Timer* const timer = (a9Timer*) MPCORE_PRIV_TIMER;
 
 	volatile int interval = 200000000; // to count a second
-	timer->load = interval;
+	timer->load = interval;	
 	int status;
 
 	// Starting the clock
@@ -36,6 +38,9 @@ int main() {
 	// Flag to see if one second has passed
 	status = timer->status;
 
+	// Creating UART variables
+	int data;
+	int write_space;
 	
 
 	// To store all adc values and avg counters. Init to 0
@@ -146,6 +151,27 @@ void sendData(int* avgs, int* switchesFlipped) {
 			char byte2 = (avgs[i] & 0b1111111) << 1;
 
 			// then call a function like sendOverSerial(byte1, byte2);
+
+			sendOverSerial(byte1, byte2);
 		}
 	}
+}
+
+// Sending data through RS-232
+void sendOverSerial(int* byte1, int* byte2) {
+	
+	data = byte1 + byte2;
+
+	int *ptr = JTEG_UART;
+	
+	ptr++;
+
+	write_space = *ptr;
+
+
+	if (write_space != 0xFFFF000) {
+		ptr--;
+		*ptr = data;
+	}
+
 }
