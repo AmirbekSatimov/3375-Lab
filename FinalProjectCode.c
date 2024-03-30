@@ -1,7 +1,16 @@
 #define ADC_BASE	0xFF204000
 #define SW_BASE     0xFF200040
+#define MPCORE_PRIV_TIMER     0xFFFEC600
 
 const int switchNum = 8;
+
+// Define structs
+typedef struct a9Timer{
+    int load;
+    int count;
+    int control;
+    int status;
+}a9Timer;
 
 // Init functions
 void initADCAutoWrite();
@@ -13,6 +22,21 @@ void sendData(int* avgs, int* switchesFlipped);
 int main() {
 	// init adc
 	initADCAutoWrite();
+
+	// init private clock
+	volatile a9Timer* const timer = (a9Timer*) MPCORE_PRIV_TIMER;
+
+	volatile int interval = 200000000; // to count a second
+	timer->load = interval;
+	int status;
+
+	// Starting the clock
+	timer->control = 3;
+
+	// Flag to see if one second has passed
+	status = timer->status;
+
+	
 
 	// To store all adc values and avg counters. Init to 0
 	int[switchNum] adcVals = {0};
@@ -27,7 +51,11 @@ int main() {
 		readADC(switchesFlipped, adcVals);
 
 		// Check if timer is done, send data
-		if (timerDone == 1) {
+		if (status == 1) {
+			
+			// Resetting status to 0
+			timer->status = 1;
+			
 			// Calculates averages
 			calcAvgs(adcVals, avgCount, avgs);
 			sendData(avgs, switchesFlipped);
