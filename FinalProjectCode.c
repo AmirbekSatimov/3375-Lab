@@ -3,8 +3,8 @@
 #define MPCORE_PRIV_TIMER     0xFFFEC600
 #define JTEG_UART 	0xFF201007
 
-
 const int switchNum = 8;
+const int secLen = 200000000;
 
 // Define structs
 typedef struct a9Timer{
@@ -16,10 +16,12 @@ typedef struct a9Timer{
 
 // Init functions
 void initADCAutoWrite();
+void zeroArrays(int* adcVals, int* avgCount, int* switchesFlipped, int* avgs);
 void readADC(int* switchesFlipped, int* adcVals);
-void readSlider(int* switchesFlipped, int* avgCount);
+void readSliders(int* switchesFlipped, int* avgCount);
 void calcAvgs(int* adcVals, int* avgCount, int* avgs);
 void sendData(int* avgs, int* switchesFlipped);
+void sendOverSerial(char byte1, char byte2);
 
 int main() {
 	// init adc
@@ -28,7 +30,7 @@ int main() {
 	// init private clock
 	volatile a9Timer* const timer = (a9Timer*) MPCORE_PRIV_TIMER;
 
-	volatile int interval = 200000000; // to count a second
+	volatile int interval = secLen; // to count a second
 	timer->load = interval;	
 	int status;
 
@@ -38,17 +40,12 @@ int main() {
 	// Flag to see if one second has passed
 	status = timer->status;
 
-	// Creating UART variables
-	int data;
-	int write_space;
-	
-
 	// To store all adc values and avg counters. Init to 0
-	int[switchNum] adcVals = {0};
-	int[switchNum] avgCount = {0};
-	int[switchNum] switchesFlipped = {0};
-	int[switchNum] avgs = {0};
-	int timerDone = 0;
+	int adcVals[switchNum];
+	int avgCount[switchNum];
+	int switchesFlipped[switchNum];
+	int avgs[switchNum];
+	zeroArrays(adcVals, avgCount, switchesFlipped, avgs);
 
 	// Main loop
 	while (1) {
@@ -64,6 +61,9 @@ int main() {
 			// Calculates averages
 			calcAvgs(adcVals, avgCount, avgs);
 			sendData(avgs, switchesFlipped);
+			
+			// Reset all arrays
+			zeroArrays(adcVals, avgCount, switchesFlipped, avgs);
 		}
 	}
 }
@@ -79,7 +79,7 @@ void readADC(int* switchesFlipped, int* adcVals) {
 	int offset;
 
 	// Checking each switch register
-	for (i = 0; i < switchNum; i++) {
+	for (int i = 0; i < switchNum; i++) {
 		// Reading the sliders
 		if (switchesFlipped[i] == 1) {
 			// Giving the correct offset for this register
@@ -101,8 +101,6 @@ void readADC(int* switchesFlipped, int* adcVals) {
 			adcVals[i] += adcVal; 
 		}	
 	}
-
-	return adcVals;
 }
 
 // Reads all the sliders
@@ -130,7 +128,7 @@ void calcAvgs(int* adcVals, int* avgCount, int* avgs) {
 			avgs[i] = 0;
 		}
 		else {
-			avgs[i] = adcVals / avgCount;
+			avgs[i] = adcVals[i] / avgCount[i];
 		}
 
 		// Clearing averages
@@ -150,28 +148,36 @@ void sendData(int* avgs, int* switchesFlipped) {
 			// this byte is the rest of the number ending with the lsb, 1 extra space 
 			char byte2 = (avgs[i] & 0b1111111) << 1;
 
-			// then call a function like sendOverSerial(byte1, byte2);
-
+			// sending the data over serial
 			sendOverSerial(byte1, byte2);
 		}
 	}
 }
 
 // Sending data through RS-232
-void sendOverSerial(int* byte1, int* byte2) {
+void sendOverSerial(char byte1, char byte2) {
 	
-	data = byte1 + byte2;
+	int data = byte1 + byte2;
 
-	int *ptr = JTEG_UART;
+	int *ptr = (int*) JTEG_UART;
 	
 	ptr++;
 
-	write_space = *ptr;
+	int write_space = *ptr;
 
 
 	if (write_space != 0xFFFF000) {
 		ptr--;
 		*ptr = data;
 	}
+}
 
+// Zeroing all the data arrays
+void zeroArrays(int* adcVals, int* avgCount, int* switchesFlipped, int* avgs){
+	for (int i = 0; i < switchNum; i++) {
+		adcVals[i] = 0;
+		avgCount[i] = 0;
+		switchesFlipped[i] = 0;
+		avgs[i] = 0;
+	}
 }
